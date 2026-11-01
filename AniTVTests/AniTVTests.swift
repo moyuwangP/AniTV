@@ -6,16 +6,16 @@
 //
 
 import Foundation
-import Testing
+import XCTest
 @testable import AniTV
 
-struct AniTVTests {
+final class AniTVTests: XCTestCase {
 
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    func testExample() async throws {
+        // Write your test here
     }
 
-    @Test func timelineServiceDemo() async throws {
+    func testTimelineServiceDemo() async throws {
         let database = try AniTVDatabase.makeDefaultDatabase()
 
         if try await AniTVDatabase.isBangumiDataEmpty(in: database) {
@@ -81,10 +81,10 @@ struct AniTVTests {
             print(jsonString)
         }
 
-        #expect(!timeline.isEmpty)
+        XCTAssertFalse(timeline.isEmpty)
     }
 
-    @Test func hlsManifestFilterAdDetection() throws {
+    func testHlsManifestFilterAdDetection() throws {
         // Build simulated low-density playlist with sandwiched ad
         var lines: [String] = [
             "#EXTM3U",
@@ -117,26 +117,26 @@ struct AniTVTests {
         let content = lines.joined(separator: "\n")
         let result = HlsManifestFilter.filter(content: content)
         
-        #expect(result.status == .filtered)
-        #expect(result.removedGroups.count == 1)
-        #expect(result.removedGroups.first?.segmentCount == 5)
-        #expect(!result.content.contains("ad_seg_"))
-        #expect(result.content.contains("main_seg_0.ts"))
-        #expect(result.content.contains("main_seg_59.ts"))
+        XCTAssertEqual(result.status, .filtered)
+        XCTAssertEqual(result.removedGroups.count, 1)
+        XCTAssertEqual(result.removedGroups.first?.segmentCount, 5)
+        XCTAssertFalse(result.content.contains("ad_seg_"))
+        XCTAssertTrue(result.content.contains("main_seg_0.ts"))
+        XCTAssertTrue(result.content.contains("main_seg_59.ts"))
     }
 
-    @Test func hlsManifestFilterMasterPlaylistUnsupported() throws {
+    func testHlsManifestFilterMasterPlaylistUnsupported() throws {
         let masterContent = """
         #EXTM3U
         #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=800000,RESOLUTION=1080x608
         2000k/hls/index.m3u8
         """
         let result = HlsManifestFilter.filter(content: masterContent)
-        #expect(result.status == .unsupported)
-        #expect(result.reason == "master_playlist")
+        XCTAssertEqual(result.status, .unsupported)
+        XCTAssertEqual(result.reason, "master_playlist")
     }
 
-    @Test func hlsManifestFilterLivePlaylistUnsupported() throws {
+    func testHlsManifestFilterLivePlaylistUnsupported() throws {
         let liveContent = """
         #EXTM3U
         #EXT-X-VERSION:3
@@ -147,11 +147,11 @@ struct AniTVTests {
         seg2.ts
         """
         let result = HlsManifestFilter.filter(content: liveContent)
-        #expect(result.status == .unsupported)
-        #expect(result.reason == "live_or_incomplete_playlist")
+        XCTAssertEqual(result.status, .unsupported)
+        XCTAssertEqual(result.reason, "live_or_incomplete_playlist")
     }
 
-    @Test func hlsManifestFilterImplicitIvUnchanged() throws {
+    func testHlsManifestFilterImplicitIvUnchanged() throws {
         let content = """
         #EXTM3U
         #EXT-X-VERSION:3
@@ -167,23 +167,23 @@ struct AniTVTests {
         #EXT-X-ENDLIST
         """
         let result = HlsManifestFilter.filter(content: content)
-        #expect(result.status == .unchanged)
-        #expect(result.reason == "encrypted_implicit_iv")
+        XCTAssertEqual(result.status, .unchanged)
+        XCTAssertEqual(result.reason, "encrypted_implicit_iv")
     }
 
-    @Test func rememberDanmakuStateLogic() async throws {
+    func testRememberDanmakuStateLogic() async throws {
         // 1. When remember is true, resolve follows lastDanmakuEnabled
         AniTVDatabase.persistDanmakuStateIfRememberEnabled(false, in: nil)
         UserDefaults.standard.set(true, forKey: AniTVDatabase.rememberDanmakuStateSettingKey)
-        #expect(AniTVDatabase.resolvedInitialDanmakuEnabled() == false)
+        XCTAssertFalse(AniTVDatabase.resolvedInitialDanmakuEnabled())
 
         AniTVDatabase.persistDanmakuStateIfRememberEnabled(true, in: nil)
-        #expect(AniTVDatabase.resolvedInitialDanmakuEnabled() == true)
+        XCTAssertTrue(AniTVDatabase.resolvedInitialDanmakuEnabled())
 
         // 2. When remember is false, resolve is always true regardless of last saved state
         AniTVDatabase.persistDanmakuStateIfRememberEnabled(false, in: nil)
         UserDefaults.standard.set(false, forKey: AniTVDatabase.rememberDanmakuStateSettingKey)
-        #expect(AniTVDatabase.resolvedInitialDanmakuEnabled() == true)
+        XCTAssertTrue(AniTVDatabase.resolvedInitialDanmakuEnabled())
 
         // Reset to default
         UserDefaults.standard.set(true, forKey: AniTVDatabase.rememberDanmakuStateSettingKey)

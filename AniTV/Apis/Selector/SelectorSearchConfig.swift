@@ -6,18 +6,64 @@ import Foundation
 struct SelectorSubjectFormatAConfig: Codable {
     var selectLists: String = "div.video-info-header > a"
     var preferShorterName: Bool = true
+
+    enum CodingKeys: String, CodingKey {
+        case selectLists
+        case preferShorterName
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.selectLists = try container.decodeIfPresent(String.self, forKey: .selectLists) ?? "div.video-info-header > a"
+        self.preferShorterName = try container.decodeIfPresent(Bool.self, forKey: .preferShorterName) ?? true
+    }
 }
 
 struct SelectorSubjectFormatIndexedConfig: Codable {
     var selectNames: String = ".search-box .thumb-content > .thumb-txt"
     var selectLinks: String = ".search-box .thumb-menu > a"
     var preferShorterName: Bool = true
+
+    enum CodingKeys: String, CodingKey {
+        case selectNames
+        case selectLinks
+        case preferShorterName
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.selectNames = try container.decodeIfPresent(String.self, forKey: .selectNames) ?? ".search-box .thumb-content > .thumb-txt"
+        self.selectLinks = try container.decodeIfPresent(String.self, forKey: .selectLinks) ?? ".search-box .thumb-menu > a"
+        self.preferShorterName = try container.decodeIfPresent(Bool.self, forKey: .preferShorterName) ?? true
+    }
 }
 
 struct SelectorSubjectFormatJsonPathIndexedPathConfig: Codable {
     var selectLinks: String = "$[*]['url', 'link']"
     var selectNames: String = "$[*]['title','name']"
     var preferShorterName: Bool = true
+    var linkTemplate: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case selectLinks
+        case selectNames
+        case preferShorterName
+        case linkTemplate
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.selectLinks = try container.decodeIfPresent(String.self, forKey: .selectLinks) ?? "$[*]['url', 'link']"
+        self.selectNames = try container.decodeIfPresent(String.self, forKey: .selectNames) ?? "$[*]['title','name']"
+        self.preferShorterName = try container.decodeIfPresent(Bool.self, forKey: .preferShorterName) ?? true
+        self.linkTemplate = try container.decodeIfPresent(String.self, forKey: .linkTemplate)
+    }
 }
 
 struct SelectorChannelFormatIndexGroupedConfig: Codable {
@@ -29,12 +75,48 @@ struct SelectorChannelFormatIndexGroupedConfig: Codable {
     var selectEpisodesFromList: String = "a"
     var selectEpisodeLinksFromList: String = ""
     var matchEpisodeSortFromName: String = "第\\s*(?<ep>.+)\\s*[话集]"
+
+    enum CodingKeys: String, CodingKey {
+        case selectChannelNames
+        case matchChannelName
+        case selectEpisodeLists
+        case selectEpisodesFromList
+        case selectEpisodeLinksFromList
+        case matchEpisodeSortFromName
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.selectChannelNames = try container.decodeIfPresent(String.self, forKey: .selectChannelNames) ?? ".anthology-tab > .swiper-wrapper a"
+        self.matchChannelName = try container.decodeIfPresent(String.self, forKey: .matchChannelName) ?? "^(?<ch>.+?)(\\d+)?$"
+        self.selectEpisodeLists = try container.decodeIfPresent(String.self, forKey: .selectEpisodeLists) ?? ".anthology-list-box"
+        self.selectEpisodesFromList = try container.decodeIfPresent(String.self, forKey: .selectEpisodesFromList) ?? "a"
+        self.selectEpisodeLinksFromList = try container.decodeIfPresent(String.self, forKey: .selectEpisodeLinksFromList) ?? ""
+        self.matchEpisodeSortFromName = try container.decodeIfPresent(String.self, forKey: .matchEpisodeSortFromName) ?? "第\\s*(?<ep>.+)\\s*[话集]"
+    }
 }
 
 struct SelectorChannelFormatNoChannelConfig: Codable {
     var selectEpisodes: String = "#glist-1 > div.module-blocklist.scroll-box.scroll-box-y > div > a"
     var selectEpisodeLinks: String = ""
     var matchEpisodeSortFromName: String = "第\\s*(?<ep>.+)\\s*[话集]"
+
+    enum CodingKeys: String, CodingKey {
+        case selectEpisodes
+        case selectEpisodeLinks
+        case matchEpisodeSortFromName
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.selectEpisodes = try container.decodeIfPresent(String.self, forKey: .selectEpisodes) ?? "#glist-1 > div.module-blocklist.scroll-box.scroll-box-y > div > a"
+        self.selectEpisodeLinks = try container.decodeIfPresent(String.self, forKey: .selectEpisodeLinks) ?? ""
+        self.matchEpisodeSortFromName = try container.decodeIfPresent(String.self, forKey: .matchEpisodeSortFromName) ?? "第\\s*(?<ep>.+)\\s*[话集]"
+    }
 }
 
 
@@ -93,6 +175,25 @@ struct SelectorSearchConfig: Codable {
         var matchVideoUrlRegex: NSRegularExpression? {
             return matchVideoUrl.toRegexOrNil()
         }
+
+        enum CodingKeys: String, CodingKey {
+            case enableNestedUrl
+            case matchNestedUrl
+            case matchVideoUrl
+            case cookies
+            case addHeadersToVideo
+        }
+
+        init() {}
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.enableNestedUrl = try container.decodeIfPresent(Bool.self, forKey: .enableNestedUrl) ?? true
+            self.matchNestedUrl = try container.decodeIfPresent(String.self, forKey: .matchNestedUrl) ?? "^.+(m3u8|vip|xigua\\.php).+\\?"
+            self.matchVideoUrl = try container.decodeIfPresent(String.self, forKey: .matchVideoUrl) ?? "(^http(s)?:\\/\\/(?!.*http(s)?:\\/\\/).+((\\.mp4)|(\\.mkv)|(m3u8)).*(\\?.+)?)|(akamaized)|(bilivideo.com)"
+            self.cookies = try container.decodeIfPresent(String.self, forKey: .cookies) ?? "quality=1080"
+            self.addHeadersToVideo = try container.decodeIfPresent(VideoHeaders.self, forKey: .addHeadersToVideo) ?? VideoHeaders()
+        }
     }
 
     struct VideoHeaders: Codable {
@@ -116,6 +217,19 @@ struct SelectorSearchConfig: Codable {
     struct SelectMediaConfig: Codable {
         var distinguishSubjectName: Bool = true
         var distinguishChannelName: Bool = true
+
+        enum CodingKeys: String, CodingKey {
+            case distinguishSubjectName
+            case distinguishChannelName
+        }
+
+        init() {}
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.distinguishSubjectName = try container.decodeIfPresent(Bool.self, forKey: .distinguishSubjectName) ?? true
+            self.distinguishChannelName = try container.decodeIfPresent(Bool.self, forKey: .distinguishChannelName) ?? true
+        }
     }
 
     // Static helper functions

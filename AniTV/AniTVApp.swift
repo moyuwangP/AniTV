@@ -41,8 +41,12 @@ struct AniTVApp: App {
             let database = try AniTVDatabase.makeDefaultDatabase()
             self.appDatabase = database
 
-            prepareDependencies {
-                $0.defaultDatabase = database
+            if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil &&
+               ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil &&
+               NSClassFromString("XCTestCase") == nil {
+                prepareDependencies {
+                    $0.defaultDatabase = database
+                }
             }
         } catch {
             fatalError("Could not create database: \(error)")
@@ -52,8 +56,12 @@ struct AniTVApp: App {
     var body: some Scene {
 
         WindowGroup {
-            AppBootstrapView(database: appDatabase)
-                .environmentObject(bangumiOAuthManager)
+            if NSClassFromString("XCTestCase") != nil {
+                Color.clear
+            } else {
+                AppBootstrapView(database: appDatabase)
+                    .environmentObject(bangumiOAuthManager)
+            }
         }
         .modelContainer(sharedModelContainer)
     }

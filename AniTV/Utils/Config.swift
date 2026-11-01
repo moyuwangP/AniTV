@@ -72,17 +72,90 @@ enum MediaSourceConfigLoader {
 }
 
 struct MediaSourceResponse: Codable {
-    let exportedMediaSourceDataList: ExportedMediaSourceDataList
+    var mediaSources: [ExportedMediaSource]
+    var exportedMediaSourceDataList: ExportedMediaSourceDataList
+
+    enum CodingKeys: String, CodingKey {
+        case mediaSources
+        case exportedMediaSourceDataList
+    }
+
+    init(mediaSources: [ExportedMediaSource]) {
+        self.mediaSources = mediaSources
+        self.exportedMediaSourceDataList = ExportedMediaSourceDataList(mediaSources: mediaSources)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // 1. Prioritize root `mediaSources` if present and non-empty
+        if container.contains(.mediaSources) {
+            if var nestedContainer = try? container.nestedUnkeyedContainer(forKey: .mediaSources) {
+                var items: [ExportedMediaSource] = []
+                while !nestedContainer.isAtEnd {
+                    if let item = try? nestedContainer.decode(ExportedMediaSource.self) {
+                        if item.factoryId == "web-selector" {
+                            items.append(item)
+                        }
+                    } else {
+                        _ = try? nestedContainer.decode(EmptyDecodable.self)
+                    }
+                }
+                if !items.isEmpty {
+                    self.mediaSources = items
+                    self.exportedMediaSourceDataList = ExportedMediaSourceDataList(mediaSources: items)
+                    return
+                }
+            }
+        }
+
+        // 2. Fallback to `exportedMediaSourceDataList`
+        let exported = try? container.decodeIfPresent(ExportedMediaSourceDataList.self, forKey: .exportedMediaSourceDataList)
+        let list = exported?.mediaSources ?? []
+        self.mediaSources = list
+        self.exportedMediaSourceDataList = ExportedMediaSourceDataList(mediaSources: list)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(mediaSources, forKey: .mediaSources)
+        try container.encode(exportedMediaSourceDataList, forKey: .exportedMediaSourceDataList)
+    }
 }
+
+private struct EmptyDecodable: Decodable {}
 
 struct ExportedMediaSourceDataList: Codable {
     let mediaSources: [ExportedMediaSource]
 }
 
 struct ExportedMediaSource: Codable {
-    let factoryId: String
-    let version: Int
-    let arguments: SelectorMediaSourceArguments
+    var id: String?
+    var factoryId: String
+    var version: Int
+    var arguments: SelectorMediaSourceArguments
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case factoryId
+        case version
+        case arguments
+    }
+
+    init(id: String? = nil, factoryId: String, version: Int, arguments: SelectorMediaSourceArguments) {
+        self.id = id
+        self.factoryId = factoryId
+        self.version = version
+        self.arguments = arguments
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id)
+        self.factoryId = try container.decodeIfPresent(String.self, forKey: .factoryId) ?? "web-selector"
+        self.version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        self.arguments = try container.decode(SelectorMediaSourceArguments.self, forKey: .arguments)
+    }
 }
 
 enum MediaSourceConfigLoaderError: LocalizedError {

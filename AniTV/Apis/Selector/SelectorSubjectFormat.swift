@@ -128,25 +128,34 @@ class SelectorSubjectFormatJsonPathIndexed: SelectorSubjectFormat {
     func select(document: HTMLDocument, baseUrl: String, config: SelectorFormatConfig) -> [WebSearchSubjectInfo]? {
         guard let config = config as? SelectorSubjectFormatJsonPathIndexedPathConfig, config.isValid() else { return nil }
 
-        // --- This section requires actual JSON parsing and JSONPath evaluation ---
-        // Placeholder for now, assume document.content is JSON string.
-        print("SelectorSubjectFormatJsonPathIndexed: Simulating JSON parsing for document: \(document.content.prefix(50))... with linkPath: \(config.selectLinks), namePath: \(config.selectNames)")
+        let names = JSONPathEvaluator.evaluateToStrings(jsonString: document.content, path: config.selectNames)
+        let rawLinks = JSONPathEvaluator.evaluateToStrings(jsonString: document.content, path: config.selectLinks)
 
-        // Simulate JSON parsing and JsonPath evaluation
-        // Dummy data for now
-        let dummyNames = ["JSON Subject 1", "JSON Subject 2"]
-        let dummyHrefs = ["/json/path/1", "/json/path/2"]
+        guard !names.isEmpty, !rawLinks.isEmpty else {
+            return nil
+        }
 
         var subjects: [WebSearchSubjectInfo] = []
-        for i in 0..<min(dummyNames.count, dummyHrefs.count) {
-            let name = dummyNames[i]
-            let href = dummyHrefs[i]
+        let count = min(names.count, rawLinks.count)
+
+        for i in 0..<count {
+            let name = names[i].trimmingCharacters(in: .whitespacesAndNewlines)
+            var href = rawLinks[i].trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if let template = config.linkTemplate, !template.isEmpty {
+                href = template
+                    .replacingOccurrences(of: "{value}", with: href)
+                    .replacingOccurrences(of: "{id}", with: href)
+                    .replacingOccurrences(of: "{link}", with: href)
+            }
 
             let id = SelectorHelpers.guessIdFromUrl(href: href)
+            let fullUrl = SelectorHelpers.computeAbsoluteUrl(baseUrl: baseUrl, relativeUrl: href)
+
             subjects.append(WebSearchSubjectInfo(
                 internalId: id,
                 name: name,
-                fullUrl: SelectorHelpers.computeAbsoluteUrl(baseUrl: baseUrl, relativeUrl: href),
+                fullUrl: fullUrl,
                 partialUrl: href,
                 origin: nil
             ))
