@@ -20,6 +20,8 @@ struct AnimeDetailView: View {
     @State private var backdropURL: URL?
     @State private var episodeStills: [Int: URL] = [:]
     @State private var episodes: [BgmEpisodeInfo] = []
+    @State private var isEpisodesLoading = true
+    @State private var mapEntry: TmdbSubjectMapEntry?
     @State private var currentProfile: UserProfile?
     @State private var userEpisodeCollectionTypesByEpisodeID: [Int: Int] = [:]
     @State private var localResumeSecondsByEpisodeID: [Int: Int] = [:]
@@ -81,14 +83,28 @@ struct AnimeDetailView: View {
                 // A. 顶部元信息区 (标题 + 简介)
                 HStack(alignment: .bottom, spacing: 60) {
                     VStack(alignment: .leading, spacing: 20) {
-                        // 1. 标题
-                        Text(displayName)
-                            .font(.system(size: 60, weight: .heavy, design: .rounded))
-                            .shadow(radius: 10)
+                        // 1. 标题 (优先展示 Logo，回退展示文字)
+                        Group {
+                            switch titleDisplayMode {
+                            case .chineseLogo(let url, let aspect), .originalLogo(let url, let aspect):
+                                KFImage(url)
+                                    .resizable()
+                                    .placeholder {
+                                        Text(displayName)
+                                            .font(.system(size: 60, weight: .heavy, design: .rounded))
+                                            .shadow(radius: 10)
+                                    }
+                                    .aspectRatio(aspect, contentMode: .fit)
+                                    .frame(maxHeight: 120, alignment: .leading)
+                                    .shadow(color: .black.opacity(0.8), radius: 10, x: 0, y: 5)
+                            case .text(let title):
+                                Text(title)
+                                    .font(.system(size: 60, weight: .heavy, design: .rounded))
+                                    .shadow(radius: 10)
+                            }
+                        }
                         
                         // 2. 标签行 (年份 | 评分 | 类型)
-
-
                         HStack(spacing: 20) {
                             if let starts = startDate {
                                 var dateString: String {
@@ -99,7 +115,9 @@ struct AnimeDetailView: View {
                                 BadgeView(text: dateString)
                             }
                             BadgeView(text: typeText.uppercased())
-                            Text(originalTitle)
+                            if !secondaryTitleText.isEmpty {
+                                Text(secondaryTitleText)
+                            }
                         }
                         
                         ScoreView(
@@ -110,15 +128,23 @@ struct AnimeDetailView: View {
                         // 给评分和下方的标签加点间距
                         .padding(.bottom, 10)
                         
-                        // 3. 简介 (限制行数)
+                        // 3. 简介 (限制行数，白字，focus后黑字白底)
                         Button(action: { self.showingFullInfo = true }) {
                             Text(infoText)
                                 .font(.body)
-                                .foregroundColor(.gray)
+                                .foregroundColor(isDescriptionFocused ? .black : .white)
                                 .lineLimit(3)
                                 .frame(maxWidth: 900, alignment: .leading)
+                                .padding(.horizontal, isDescriptionFocused ? 16 : 0)
+                                .padding(.vertical, isDescriptionFocused ? 10 : 0)
+                                .background(
+                                    isDescriptionFocused ? Color.white : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                )
                         }
                         .buttonStyle(.plain)
+                        .focused($focusedField, equals: "description")
+                        .animation(.easeInOut(duration: 0.18), value: isDescriptionFocused)
                         
                         // 4. 操作按钮组
                         HStack(spacing: 20) {
@@ -157,20 +183,26 @@ struct AnimeDetailView: View {
                     ScrollViewReader { scrollProxy in
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 40) {
-                                ForEach(episodes, id: \.id) { episode in
-                                    EpisodeCardView(
-                                        episodeInfo: episode,
-                                        sessionTitle: displayName,
-                                        stillURL: episodeStills[episode.id],
-                                        isWatched: effectiveIsWatched(for: episode),
-                                        onOpenPlayer: {
-                                            handleEpisodeCardTap(episode)
-                                        },
-                                        onToggleWatched: {
-                                            handleEpisodeWatchToggle(episode)
-                                        }
-                                    )
-                                    .id(episode.id)
+                                if isEpisodesLoading && episodes.isEmpty {
+                                    ForEach(0..<6, id: \.self) { _ in
+                                        EpisodeSkeletonCardView()
+                                    }
+                                } else {
+                                    ForEach(episodes, id: \.id) { episode in
+                                        EpisodeCardView(
+                                            episodeInfo: episode,
+                                            sessionTitle: displayName,
+                                            stillURL: episodeStills[episode.id],
+                                            isWatched: effectiveIsWatched(for: episode),
+                                            onOpenPlayer: {
+                                                handleEpisodeCardTap(episode)
+                                            },
+                                            onToggleWatched: {
+                                                handleEpisodeWatchToggle(episode)
+                                            }
+                                        )
+                                        .id(episode.id)
+                                    }
                                 }
                             }
                             .padding(.bottom, 60)
@@ -276,6 +308,44 @@ struct AnimeDetailView: View {
     // 用于管理焦点的命名空间
     @FocusState private var focusedField: String?
     @Namespace var focusNamespace
+
+    private var isDescriptionFocused: Bool {
+        focusedField == "description"
+    }
+
+    private enum TitleDisplayMode: Equatable {
+        case chineseLogo(url: URL, aspectRatio: Double)
+        case originalLogo(url: URL, aspectRatio: Double)
+        case text(String)
+    }
+
+    private var titleDisplayMode: TitleDisplayMode {
+        if let logos = mapEntry?.logos {
+            // 优先级 1: 中文 logo
+            if let zh = logos.logos["zh"],
+               let url = URL(string: "https://image.tmdb.org/t/p/w500" + zh.filePath) {
+                return .chineseLogo(url: url, aspectRatio: zh.aspectRatio)
+            }
+            // 优先级 2: 原始语言 logo
+            let origLang = logos.originalLanguage ?? "ja"
+            if let orig = logos.logos[origLang],
+               let url = URL(string: "https://image.tmdb.org/t/p/w500" + orig.filePath) {
+                return .originalLogo(url: url, aspectRatio: orig.aspectRatio)
+            }
+        }
+        // 优先级 3: 纯文字标题
+        return .text(displayName)
+    }
+
+    private var secondaryTitleText: String {
+        switch titleDisplayMode {
+        case .originalLogo:
+            // 在展示原始语言logo时展示中文标题
+            return displayName
+        case .chineseLogo, .text:
+            return originalTitle
+        }
+    }
 
     private var displayName: String {
         if let nameCN = subject?.nameCN, !nameCN.isEmpty { return nameCN }
@@ -423,7 +493,9 @@ struct AnimeDetailView: View {
 
             let tmdbRepo = TMDBRepository()
             let backdrop = await tmdbRepo.getBackdrop(subjectId: bgmId)
+            let entry = await TmdbSubjectMapManager.shared.lookup(subjectId: bgmId)
             await MainActor.run {
+                self.mapEntry = entry
                 // Prefer TMDB backdrop; keep BGM image when TMDB fails.
                 if !backdrop.isEmpty {
                     backdropURL = URL(string: backdrop)
@@ -433,10 +505,12 @@ struct AnimeDetailView: View {
             print("Failed to load subject detail: \(error)")
         }
 
+        isEpisodesLoading = true
         do {
             let response = try await bgmRepo.getEpisodes(id: bgmId)
             await MainActor.run {
                 episodes = response.data
+                isEpisodesLoading = false
             }
             // 异步并发拉取分集剧照
             Task {
@@ -448,6 +522,9 @@ struct AnimeDetailView: View {
                 self.episodeStills = stills
             }
         } catch {
+            await MainActor.run {
+                isEpisodesLoading = false
+            }
             print("Failed to load episodes: \(error)")
         }
 

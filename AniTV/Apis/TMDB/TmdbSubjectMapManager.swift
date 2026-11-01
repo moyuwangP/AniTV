@@ -7,6 +7,48 @@
 
 import Foundation
 
+struct TmdbTitleLogo: Sendable, Equatable {
+    let filePath: String
+    let aspectRatio: Double
+}
+
+struct TmdbSubjectMapLogos: Sendable {
+    let originalLanguage: String?
+    let logos: [String: TmdbTitleLogo] // language -> TmdbTitleLogo (e.g. "zh", "ja", "en")
+
+    static func parse(_ text: String?) -> TmdbSubjectMapLogos? {
+        guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            return nil
+        }
+        var original: String? = nil
+        var logos: [String: TmdbTitleLogo] = [:]
+
+        for part in text.split(separator: " ") {
+            let sub = part.split(separator: "=", maxSplits: 1)
+            guard sub.count == 2 else { continue }
+            let key = String(sub[0])
+            let value = String(sub[1])
+
+            if key == "o" {
+                original = value
+                continue
+            }
+            if value == "-" {
+                continue
+            }
+            let logoParts = value.split(separator: ":", maxSplits: 1)
+            if logoParts.count == 2, let aspect = Double(logoParts[1]) {
+                logos[key] = TmdbTitleLogo(filePath: String(logoParts[0]), aspectRatio: aspect)
+            } else if logoParts.count == 1 {
+                logos[key] = TmdbTitleLogo(filePath: String(logoParts[0]), aspectRatio: 1.0)
+            }
+        }
+
+        if original == nil && logos.isEmpty { return nil }
+        return TmdbSubjectMapLogos(originalLanguage: original, logos: logos)
+    }
+}
+
 struct TmdbSubjectMapEntry: Sendable {
     let bgmId: Int
     let backdropRef: String?     // e.g. "tv/209867" or "movie/23150"
@@ -14,6 +56,7 @@ struct TmdbSubjectMapEntry: Sendable {
     let stillsSource: String?    // e.g. "tv/209867", "tv/209867/season/0"
     let episodesRule: String?    // e.g. "S1E1", "1-12:S1E1 13-24:S2E1"
     let tmdbSeriesId: Int?       // 解析出纯数字 ID (若为 tv/123 -> 123)
+    let logos: TmdbSubjectMapLogos?
 }
 
 actor TmdbSubjectMapManager {
@@ -139,6 +182,8 @@ actor TmdbSubjectMapManager {
             let backdropPath = parts.count > 2 && !parts[2].isEmpty ? parts[2] : nil
             let stillsSource = parts.count > 3 && !parts[3].isEmpty ? parts[3] : nil
             let episodesRule = parts.count > 5 && !parts[5].isEmpty ? parts[5] : nil
+            let logosStr = parts.count > 6 && !parts[6].isEmpty ? parts[6] : nil
+            let logos = TmdbSubjectMapLogos.parse(logosStr)
 
             var seriesId: Int? = nil
             if let target = stillsSource ?? backdropRef {
@@ -154,7 +199,8 @@ actor TmdbSubjectMapManager {
                 backdropPath: backdropPath,
                 stillsSource: stillsSource,
                 episodesRule: episodesRule,
-                tmdbSeriesId: seriesId
+                tmdbSeriesId: seriesId,
+                logos: logos
             )
         }
 
