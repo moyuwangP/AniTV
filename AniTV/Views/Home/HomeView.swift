@@ -676,6 +676,39 @@ private struct HomePosterShelfView: View {
     var onItemAppear: ((HomePosterItem) -> Void)?
     var showsLoadingTail = false
 
+    @FocusState private var focusedItemID: Int?
+    @State private var scrolledItemID: Int?
+    @State private var manualLeadingItemID: Int?
+    @State private var isTitleLifted: Bool = false
+
+    private var effectiveLeadingItemID: Int? {
+        manualLeadingItemID ?? scrolledItemID ?? items.first?.id
+    }
+
+    private func updateTitleLiftState(for itemID: Int?) {
+        guard let itemID else {
+            return
+        }
+
+        guard let newIndex = items.firstIndex(where: { $0.id == itemID }) else {
+            return
+        }
+
+        let leadingID = effectiveLeadingItemID
+        let leadingIndex = items.firstIndex(where: { $0.id == leadingID }) ?? 0
+
+        if newIndex <= leadingIndex {
+            manualLeadingItemID = itemID
+            if !isTitleLifted {
+                isTitleLifted = true
+            }
+        } else {
+            if isTitleLifted {
+                isTitleLifted = false
+            }
+        }
+    }
+
     var body: some View {
         if title == "热门条目" {
             HomePosterGridSection(
@@ -693,7 +726,8 @@ private struct HomePosterShelfView: View {
                     .font(.system(size: 38, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 80)
-                    .padding(.bottom, 10)
+                    .offset(y: isTitleLifted ? -16 : 0)
+                    .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isTitleLifted)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 40) {
@@ -707,6 +741,7 @@ private struct HomePosterShelfView: View {
                                     openAnimeDetail(item.id)
                                 }
                                 .id(item.id)
+                                .focused($focusedItemID, equals: item.id)
                                 .onAppear {
                                     onItemAppear?(item)
                                 }
@@ -721,8 +756,27 @@ private struct HomePosterShelfView: View {
                     .padding(.trailing, 80)
                     .padding(.bottom, 54)
                     .padding(.top, 54)
+                    .scrollTargetLayout()
                 }
+                .scrollPosition(id: $scrolledItemID)
                 .frame(height: 460)
+                .onChange(of: scrolledItemID) { _, newScrolledID in
+                    guard let newScrolledID else { return }
+                    manualLeadingItemID = newScrolledID
+                    updateTitleLiftState(for: focusedItemID)
+                }
+                .onChange(of: focusedItemID) { _, newID in
+                    if let newID {
+                        updateTitleLiftState(for: newID)
+                    } else {
+                        Task {
+                            try? await Task.sleep(nanoseconds: 50_000_000)
+                            if focusedItemID == nil && isTitleLifted {
+                                isTitleLifted = false
+                            }
+                        }
+                    }
+                }
             }
             .padding(.top, 20)
             .focusSection()
@@ -739,6 +793,9 @@ private struct HomePosterGridSection: View {
     var onItemAppear: ((HomePosterItem) -> Void)?
     var showsLoadingTail = false
 
+    @FocusState private var focusedItemID: Int?
+    @State private var isTitleLifted: Bool = false
+
     private let columnCount = 6
     private let posterWidth: CGFloat = 258
     private let horizontalPadding: CGFloat = 80
@@ -751,7 +808,8 @@ private struct HomePosterGridSection: View {
                 .font(.system(size: 38, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
                 .padding(.horizontal, horizontalPadding)
-                .padding(.bottom, 10)
+                .offset(y: isTitleLifted ? -16 : 0)
+                .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isTitleLifted)
 
             LazyVStack(alignment: .leading, spacing: rowSpacing) {
                 ForEach(0..<rowCount, id: \.self) { row in
@@ -768,6 +826,21 @@ private struct HomePosterGridSection: View {
         .frame(width: availableWidth, alignment: .leading)
         .padding(.top, 50)
         .focusSection()
+        .onChange(of: focusedItemID) { _, newID in
+            if let newID {
+                let isUnder = (newID == items.first?.id)
+                if isTitleLifted != isUnder {
+                    isTitleLifted = isUnder
+                }
+            } else {
+                Task {
+                    try? await Task.sleep(nanoseconds: 50_000_000)
+                    if focusedItemID == nil && isTitleLifted {
+                        isTitleLifted = false
+                    }
+                }
+            }
+        }
     }
 
     private var cellCount: Int {
@@ -795,6 +868,7 @@ private struct HomePosterGridSection: View {
                 openAnimeDetail(item.id)
             }
             .id(item.id)
+            .focused($focusedItemID, equals: item.id)
             .onAppear {
                 onItemAppear?(item)
             }
