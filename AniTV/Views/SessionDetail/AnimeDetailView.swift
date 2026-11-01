@@ -18,6 +18,7 @@ struct AnimeDetailView: View {
     @State private var showingFullInfo = false
     @State private var subject: SubjectDetailDTO?
     @State private var backdropURL: URL?
+    @State private var episodeStills: [Int: URL] = [:]
     @State private var episodes: [BgmEpisodeInfo] = []
     @State private var currentProfile: UserProfile?
     @State private var userEpisodeCollectionTypesByEpisodeID: [Int: Int] = [:]
@@ -160,7 +161,7 @@ struct AnimeDetailView: View {
                                     EpisodeCardView(
                                         episodeInfo: episode,
                                         sessionTitle: displayName,
-                                        stillURL: backdropURL,
+                                        stillURL: episodeStills[episode.id],
                                         isWatched: effectiveIsWatched(for: episode),
                                         onOpenPlayer: {
                                             handleEpisodeCardTap(episode)
@@ -420,14 +421,12 @@ struct AnimeDetailView: View {
                 }
             }
 
-            if let tmdbID = try await AniTVDatabase.tmdbIDForBangumiID(String(bgmId), in: database) {
-                let tmdbRepo = TMDBRepository()
-                let backdrop = await tmdbRepo.getBackdrop(tmdbID: tmdbID)
-                await MainActor.run {
-                    // Prefer TMDB backdrop; keep BGM image when TMDB fails.
-                    if !backdrop.isEmpty {
-                        backdropURL = URL(string: backdrop)
-                    }
+            let tmdbRepo = TMDBRepository()
+            let backdrop = await tmdbRepo.getBackdrop(subjectId: bgmId)
+            await MainActor.run {
+                // Prefer TMDB backdrop; keep BGM image when TMDB fails.
+                if !backdrop.isEmpty {
+                    backdropURL = URL(string: backdrop)
                 }
             }
         } catch {
@@ -438,6 +437,15 @@ struct AnimeDetailView: View {
             let response = try await bgmRepo.getEpisodes(id: bgmId)
             await MainActor.run {
                 episodes = response.data
+            }
+            // 异步并发拉取分集剧照
+            Task {
+                let stills = await TMDBEpisodeStillRepository.shared.getEpisodeStills(
+                    subjectId: bgmId,
+                    episodes: response.data,
+                    database: database
+                )
+                self.episodeStills = stills
             }
         } catch {
             print("Failed to load episodes: \(error)")

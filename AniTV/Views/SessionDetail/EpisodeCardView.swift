@@ -20,19 +20,19 @@ struct EpisodeCardView: View {
     var body: some View {
         Button(action: onOpenPlayer) {
             VStack(alignment: .leading, spacing: 0) {
-                KFImage(stillURL)
-                    .resizable()
-                    .placeholder{
-                        ZStack {
-                            Color.gray.opacity(0.3)
-                            Image(systemName: "photo")
-                                .font(.title)
-                                .foregroundColor(.white.opacity(0.5))
+                if let stillURL {
+                    KFImage(stillURL)
+                        .resizable()
+                        .placeholder {
+                            placeholderView
                         }
-                    }
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 320, height: 180) // 经典的 16:9 尺寸
-                    .clipped()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 320, height: 180) // 经典的 16:9 尺寸
+                        .clipped()
+                } else {
+                    placeholderView
+                        .frame(width: 320, height: 180)
+                }
                 
                 
                 // 2. 剧集标题/集数
@@ -59,5 +59,14 @@ struct EpisodeCardView: View {
             Button(isWatched ? "撤销观看状态" : "标记为已观看", action: onToggleWatched)
         }
         // 注意：使用了 .card 样式后，不需要手动写 scaleEffect，系统会自动处理
+    }
+
+    private var placeholderView: some View {
+        ZStack {
+            Color.gray.opacity(0.3)
+            Image(systemName: "photo.badge.questionmark")
+                .font(.title)
+                .foregroundColor(.white.opacity(0.5))
+        }
     }
 }

@@ -139,6 +139,9 @@ final class AppBootstrapModel: ObservableObject {
 
             phase = .ready
             startBangumiDataRefreshLoopIfNeeded()
+            Task.detached(priority: .utility) {
+                await TmdbSubjectMapManager.shared.ensureLoaded()
+            }
             await triggerBangumiTokenRefreshIfNeeded()
             await triggerBangumiDataRefreshIfNeeded()
             await triggerMediaSourceRefreshIfNeeded()

@@ -35,6 +35,20 @@ private struct TMDBImage: Decodable {
 struct TMDBRepository {
     @Dependency(\.defaultDatabase) private var database
 
+    // 通过 Bangumi Subject ID 优先从 bangumi-tmdb-map 获取背景图
+    func getBackdrop(subjectId: Int) async -> String {
+        if let entry = await TmdbSubjectMapManager.shared.lookup(subjectId: subjectId),
+           let path = entry.backdropPath, !path.isEmpty {
+            return TMDBConfig.imageBaseURL + path
+        }
+
+        // 回退尝试查 bangumi_data
+        if let tmdbID = try? await AniTVDatabase.tmdbIDForBangumiID(String(subjectId), in: database) {
+            return await getBackdrop(tmdbID: tmdbID)
+        }
+        return ""
+    }
+
     // tmdbID example: "movie/12345" or "tv/12345"
     func getBackdrop(tmdbID: String) async -> String {
         let normalizedTMDBID = normalizeTMDBID(tmdbID)

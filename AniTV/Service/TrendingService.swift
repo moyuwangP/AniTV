@@ -30,12 +30,10 @@ struct TrendingService: Sendable {
         for entry in response.data {
             let subjectID = entry.subject.id
 
-            if let tmdbID = try await AniTVDatabase.tmdbIDForBangumiID(String(subjectID), in: database) {
-                let tmdbBackdrop = await tmdbRepository.getBackdrop(tmdbID: tmdbID)
-                if !tmdbBackdrop.isEmpty {
-                    tmdbBackdropBySubjectID[subjectID] = tmdbBackdrop
-                    continue
-                }
+            let tmdbBackdrop = await tmdbRepository.getBackdrop(subjectId: subjectID)
+            if !tmdbBackdrop.isEmpty {
+                tmdbBackdropBySubjectID[subjectID] = tmdbBackdrop
+                continue
             }
 
             missingTMDBSubjectIDs.append(subjectID)
