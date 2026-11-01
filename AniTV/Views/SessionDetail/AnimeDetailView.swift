@@ -135,8 +135,6 @@ struct AnimeDetailView: View {
                                 .foregroundColor(isDescriptionFocused ? .black : .white)
                                 .lineLimit(3)
                                 .frame(maxWidth: 900, alignment: .leading)
-                                .padding(.horizontal, isDescriptionFocused ? 14 : 0)
-                                .padding(.vertical, isDescriptionFocused ? 8 : 0)
                                 .background(
                                     isDescriptionFocused ? Color.white : Color.clear,
                                     in: RoundedRectangle(cornerRadius: 10, style: .continuous)
