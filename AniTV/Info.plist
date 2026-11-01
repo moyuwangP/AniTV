@@ -48,5 +48,9 @@
 	<array>
 		<integer>3</integer>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 </dict>
 </plist>

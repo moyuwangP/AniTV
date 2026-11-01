@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import SQLiteData
+import AVFoundation
 
 @main
 struct AniTVApp: App {
@@ -28,6 +29,14 @@ struct AniTVApp: App {
     }()
 
     init() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .moviePlayback)
+            try session.setActive(true)
+        } catch {
+            print("[AniTVApp] Failed to configure playback AVAudioSession: \(error)")
+        }
+
         do {
             let database = try AniTVDatabase.makeDefaultDatabase()
             self.appDatabase = database

@@ -99,13 +99,44 @@ struct AdvancedVideoPlayer: UIViewControllerRepresentable {
     // 选中的线路回调（如果需要通知外部去切换 m3u8）
     var onSourceSelected: ((Int, Int, VideoResource) -> Void)?
     
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
         var pipController: AVPictureInPictureController?
         let sourcePanelModel = SourceSwitchPanelModel()
         var detailsHostingController: UIHostingController<AniTVCustomDropdownView>?
         weak var currentDanmuManager: DanmuViewManager?
         var isDanmakuEnabled: Bool = AniTVDatabase.resolvedInitialDanmakuEnabled()
         var selectedDisplayArea: CGFloat = 1.0
+        weak var controller: AVPlayerViewController?
+
+        // MARK: - AVPlayerViewControllerDelegate
+        func playerViewControllerShouldAutomaticallyDismissAtPictureInPictureStart(_ playerViewController: AVPlayerViewController) -> Bool {
+            return false
+        }
+
+        func playerViewControllerWillStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
+            print("[AdvancedVideoPlayer] PiP will start")
+        }
+
+        func playerViewControllerDidStartPictureInPicture(_ playerViewController: AVPlayerViewController) {
+            print("[AdvancedVideoPlayer] PiP did start")
+        }
+
+        func playerViewController(_ playerViewController: AVPlayerViewController, failedToStartPictureInPictureWithError error: Error) {
+            print("[AdvancedVideoPlayer] PiP failed to start: \(error.localizedDescription)")
+        }
+
+        func playerViewControllerWillStopPictureInPicture(_ playerViewController: AVPlayerViewController) {
+            print("[AdvancedVideoPlayer] PiP will stop")
+        }
+
+        func playerViewControllerDidStopPictureInPicture(_ playerViewController: AVPlayerViewController) {
+            print("[AdvancedVideoPlayer] PiP did stop")
+        }
+
+        func playerViewController(_ playerViewController: AVPlayerViewController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
+            print("[AdvancedVideoPlayer] PiP restore UI requested")
+            completionHandler(true)
+        }
     }
     
     func makeCoordinator() -> Coordinator {
@@ -124,11 +155,23 @@ struct AdvancedVideoPlayer: UIViewControllerRepresentable {
             print("[AdvancedVideoPlayer] Warning: contentOverlayView is nil")
         }
     }
+
+    private func setupPipControllerIfNeeded(controller: AVPlayerViewController, context: Context) {
+        if context.coordinator.pipController == nil {
+            if let internalPip = controller.value(forKey: "pictureInPictureController") as? AVPictureInPictureController {
+                context.coordinator.pipController = internalPip
+            } else if let playerLayer = findPlayerLayer(in: controller.view.layer), AVPictureInPictureController.isPictureInPictureSupported() {
+                context.coordinator.pipController = AVPictureInPictureController(playerLayer: playerLayer)
+            }
+        }
+    }
     
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AniTVPlayerViewController()
         controller.player = player
+        controller.delegate = context.coordinator
         controller.allowsPictureInPicturePlayback = true
+        context.coordinator.controller = controller
         controller.appliesPreferredDisplayCriteriaAutomatically = false
         controller.showsPlaybackControls = !isSourcePanelPresented
         controller.shouldIgnoreUpArrow = isSourcePanelPresented
@@ -163,19 +206,19 @@ struct AdvancedVideoPlayer: UIViewControllerRepresentable {
         }
         
         controller.loadViewIfNeeded()
-        if let playerLayer = findPlayerLayer(in: controller.view.layer) {
-            context.coordinator.pipController = AVPictureInPictureController(playerLayer: playerLayer)
-        }
-        
+        setupPipControllerIfNeeded(controller: controller, context: context)
         setupDanmuManagerIfNeeded(controller: controller, context: context)
         
         controller.infoViewActions = [startOverAction, favoriteAction]
-        controller.transportBarCustomMenuItems = [getSourcePanelAction(), getPipAction(context: context), getDanmakuMenu(uiViewController: controller, context: context)]
+        controller.transportBarCustomMenuItems = [getSourcePanelAction(), getPipAction(uiViewController: controller, context: context), getDanmakuMenu(uiViewController: controller, context: context)]
         return controller
     }
     
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
         uiViewController.player = player
+        uiViewController.delegate = context.coordinator
+        uiViewController.allowsPictureInPicturePlayback = true
+        context.coordinator.controller = uiViewController
         if let controller = uiViewController as? AniTVPlayerViewController {
             uiViewController.showsPlaybackControls = !isSourcePanelPresented
             controller.shouldIgnoreUpArrow = isSourcePanelPresented
@@ -187,9 +230,10 @@ struct AdvancedVideoPlayer: UIViewControllerRepresentable {
             }
             setupDanmuManagerIfNeeded(controller: controller, context: context)
         }
+        setupPipControllerIfNeeded(controller: uiViewController, context: context)
         context.coordinator.detailsHostingController?.rootView = AniTVCustomDropdownView(title: title, sort: sort)
         context.coordinator.sourcePanelModel.update(sources: availableSources, onSourceSelected: onSourceSelected)
-        uiViewController.transportBarCustomMenuItems = [getSourcePanelAction(), getPipAction(context: context), getDanmakuMenu(uiViewController: uiViewController, context: context)]
+        uiViewController.transportBarCustomMenuItems = [getSourcePanelAction(), getPipAction(uiViewController: uiViewController, context: context), getDanmakuMenu(uiViewController: uiViewController, context: context)]
     }
 
     private func getDanmakuMenu(uiViewController: AVPlayerViewController, context: Context) -> UIMenu {
@@ -208,7 +252,7 @@ struct AdvancedVideoPlayer: UIViewControllerRepresentable {
             onDanmakuToggled?(newEnabled)
             uiViewController.transportBarCustomMenuItems = [
                 getSourcePanelAction(),
-                getPipAction(context: context),
+                getPipAction(uiViewController: uiViewController, context: context),
                 getDanmakuMenu(uiViewController: uiViewController, context: context)
             ]
         }
@@ -232,7 +276,7 @@ struct AdvancedVideoPlayer: UIViewControllerRepresentable {
                 danmuManager?.displayArea = item.area
                 uiViewController.transportBarCustomMenuItems = [
                     getSourcePanelAction(),
-                    getPipAction(context: context),
+                    getPipAction(uiViewController: uiViewController, context: context),
                     getDanmakuMenu(uiViewController: uiViewController, context: context)
                 ]
             }
@@ -262,21 +306,37 @@ struct AdvancedVideoPlayer: UIViewControllerRepresentable {
         }
     }
     
-    private func getPipAction(context: Context) -> UIAction{
+    private func getPipAction(uiViewController: AVPlayerViewController, context: Context) -> UIAction {
         return UIAction(
             title: "画中画",
             image: UIImage(systemName: "pip")
-        ) { _ in
-            guard let pipController = context.coordinator.pipController else {
-                print("PiP 不可用")
-                return
-            }
-            if pipController.isPictureInPictureActive {
-                pipController.stopPictureInPicture()
-            } else if pipController.isPictureInPicturePossible {
-                pipController.startPictureInPicture()
+        ) { [weak uiViewController] _ in
+            guard let controller = uiViewController else { return }
+            
+            setupPipControllerIfNeeded(controller: controller, context: context)
+            
+            let startSel = Selector(("startPictureInPicture"))
+            let stopSel = Selector(("stopPictureInPicture"))
+            let isPiPActive = (controller.value(forKey: "isPictureInPictureActive") as? Bool) ?? (context.coordinator.pipController?.isPictureInPictureActive ?? false)
+
+            if isPiPActive {
+                if controller.responds(to: stopSel) {
+                    _ = controller.perform(stopSel)
+                } else if let pipController = context.coordinator.pipController {
+                    pipController.stopPictureInPicture()
+                }
             } else {
-                print("PiP 暂不可用")
+                if controller.responds(to: startSel) {
+                    _ = controller.perform(startSel)
+                } else if let pipController = context.coordinator.pipController {
+                    if pipController.isPictureInPicturePossible {
+                        pipController.startPictureInPicture()
+                    } else {
+                        print("[PiP] AVPictureInPictureController 暂不可用")
+                    }
+                } else {
+                    print("[PiP] 画中画功能在此设备上不可用")
+                }
             }
         }
     }

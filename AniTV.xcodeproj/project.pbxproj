@@ -497,6 +497,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AniTV/Info.plist;
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "AniTV 使用本地 HTTP 服务来完成局域网二维码登录。";
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = arm64;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
@@ -529,6 +530,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AniTV/Info.plist;
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "AniTV 使用本地 HTTP 服务来完成局域网二维码登录。";
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = arm64;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
