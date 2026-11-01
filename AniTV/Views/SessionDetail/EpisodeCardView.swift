@@ -54,7 +54,6 @@ struct EpisodeCardView: View {
         }
         .buttonStyle(.card) // tvOS 自带的卡片样式，自带视差和光效
         .frame(width: 320)
-        .padding(.top, 10)
         .contextMenu {
             Button(isWatched ? "撤销观看状态" : "标记为已观看", action: onToggleWatched)
         }

@@ -135,11 +135,11 @@ struct AnimeDetailView: View {
                                 .foregroundColor(isDescriptionFocused ? .black : .white)
                                 .lineLimit(3)
                                 .frame(maxWidth: 900, alignment: .leading)
-                                .padding(.horizontal, isDescriptionFocused ? 16 : 0)
-                                .padding(.vertical, isDescriptionFocused ? 10 : 0)
+                                .padding(.horizontal, isDescriptionFocused ? 14 : 0)
+                                .padding(.vertical, isDescriptionFocused ? 8 : 0)
                                 .background(
                                     isDescriptionFocused ? Color.white : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -174,10 +174,12 @@ struct AnimeDetailView: View {
 //                .padding(.horizontal, 80) // tvOS 两侧留白通常较大
                 
                 // B. 底部剧集列表 (Shelf)
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("剧集列表")
                         .font(.title3)
                         .fontWeight(.bold)
+                        .offset(y: isShelfTitleLifted ? -16 : 0)
+                        .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isShelfTitleLifted)
 //                        .padding(.horizontal, 80)
 
                     ScrollViewReader { scrollProxy in
@@ -202,10 +204,23 @@ struct AnimeDetailView: View {
                                             }
                                         )
                                         .id(episode.id)
+                                        .focused($focusedEpisodeID, equals: episode.id)
                                     }
                                 }
                             }
-                            .padding(.bottom, 60)
+                            .padding(.top, 22)
+                            .padding(.bottom, 50)
+                            .scrollTargetLayout()
+                        }
+                        .scrollPosition(id: $scrolledEpisodeID)
+                        .frame(height: 320)
+                        .onChange(of: scrolledEpisodeID) { _, newScrolledID in
+                            guard let newScrolledID else { return }
+                            manualLeadingEpisodeID = newScrolledID
+                            updateTitleLiftState(for: focusedEpisodeID)
+                        }
+                        .onChange(of: focusedEpisodeID) { _, newID in
+                            updateTitleLiftState(for: newID)
                         }
                         .onChange(of: firstUnwatchedEpisode?.id) { _, episodeID in
                             guard let episodeID else { return }
@@ -221,10 +236,19 @@ struct AnimeDetailView: View {
                         }
                     }
                 }
+                .focusSection()
             }
         }
         .onAppear {
             focusedField = "playButton"
+        }
+        .onChange(of: focusedField) { _, newField in
+            if newField != nil {
+                // 焦点真正离开了剧集列表（例如移动到了“开始播放”或“简介”），落下标题
+                if isShelfTitleLifted {
+                    isShelfTitleLifted = false
+                }
+            }
         }
         .onChange(of: playerDismissRefreshToken) { _, refreshToken in
             guard refreshToken > 0 else { return }
@@ -307,7 +331,46 @@ struct AnimeDetailView: View {
     
     // 用于管理焦点的命名空间
     @FocusState private var focusedField: String?
+    @FocusState private var focusedEpisodeID: Int?
     @Namespace var focusNamespace
+
+    @State private var scrolledEpisodeID: Int?
+    @State private var manualLeadingEpisodeID: Int?
+    @State private var isShelfTitleLifted: Bool = false
+
+    /// 当前停留在视口最左侧（文案正下方）的集数 ID
+    private var effectiveLeadingEpisodeID: Int? {
+        manualLeadingEpisodeID ?? scrolledEpisodeID ?? firstUnwatchedEpisode?.id ?? episodes.first?.id
+    }
+
+    /// 同步更新抬高状态，杜绝任何异步滚动动画导致的脱节或延迟弹跳
+    private func updateTitleLiftState(for episodeID: Int?) {
+        guard let episodeID else {
+            // 焦点是 nil（例如卡片间切换时的过渡瞬态），保持当前高度，绝不误降！
+            return
+        }
+
+        guard let newIndex = episodes.firstIndex(where: { $0.id == episodeID }) else {
+            return
+        }
+
+        let leadingID = effectiveLeadingEpisodeID
+        let leadingIndex = episodes.firstIndex(where: { $0.id == leadingID }) ?? 0
+
+        if newIndex <= leadingIndex {
+            // 焦点移动到当前首张卡片，或往左翻超越了原首张卡片：
+            // 同步将该卡片确立为新的 leading 卡片，状态同步升起/保持升起，0ms 延迟，杜绝脱节！
+            manualLeadingEpisodeID = episodeID
+            if !isShelfTitleLifted {
+                isShelfTitleLifted = true
+            }
+        } else {
+            // 焦点在首张卡片右侧（非正下方），标题平滑落下
+            if isShelfTitleLifted {
+                isShelfTitleLifted = false
+            }
+        }
+    }
 
     private var isDescriptionFocused: Bool {
         focusedField == "description"

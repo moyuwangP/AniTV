@@ -28,8 +28,6 @@ struct StarRatingView: View {
     private var emptyStars: Int { 5 - fullStars - (hasHalfStar ? 1 : 0) }
     
     var body: some View {
-        let _ = print(fiveStarScore)
-
         HStack(spacing: 4) {
             // 实心星
             ForEach(0..<fullStars, id: \.self) { _ in
@@ -58,6 +56,24 @@ struct ScoreView: View {
     private var scoreString: String {
         String(format: "%.1f", score)
     }
+
+    private var scoreDescription: String {
+        guard score > 0 else { return "" }
+        let roundedScore = min(max(Int(score.rounded()), 1), 10)
+        let descriptions = [
+            1: "不忍直视",
+            2: "很差",
+            3: "差",
+            4: "较差",
+            5: "不过不失",
+            6: "还行",
+            7: "推荐",
+            8: "力荐",
+            9: "神作",
+            10: "超神作"
+        ]
+        return descriptions[roundedScore] ?? ""
+    }
     
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
@@ -80,13 +96,14 @@ struct ScoreView: View {
                     }
                 }
                 .font(.body)
-                .foregroundColor(.bangumiTextGray)
+                .foregroundColor(.white)
             }
             .padding(.top, 8) // 微调对齐
             
-            Text("神作")
-                .font(.system(size: 48, weight: .bold, design: .rounded))
-//                .foregroundColor(.bangumiPurple)
+            if !scoreDescription.isEmpty {
+                Text(scoreDescription)
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+            }
         }
     }
 }
